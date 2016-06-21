@@ -2,6 +2,8 @@ package com.net2plan.examples.general.onlineSim;
 
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -14,7 +16,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import com.net2plan.general.StatisticsCalculator;
 import com.net2plan.general.StatisticsCalculator_Algorithm;
 import com.net2plan.interfaces.networkDesign.Demand;
 import com.net2plan.interfaces.networkDesign.Link;
@@ -80,7 +81,7 @@ public class OnLine_evProc_Survival_UPCT_UPC extends IEventProcessor
 	private long stat_counter;
 
 	private Boolean dM;
-	private Boolean isFinishedTransitory = false;
+//	private Boolean isFinishedTransitory = false;
 
 	private InputParameter bandwidthInGbpsPerService = new InputParameter ("bandwidthInGbpsPerService", "400 100 40 10", "Set of bandwidth services");
 	private InputParameter distanceAdaptive = new InputParameter ("distanceAdaptive", (Boolean) false, "Indicates whether distance-adaptive modulation formats are used");
@@ -110,7 +111,7 @@ public class OnLine_evProc_Survival_UPCT_UPC extends IEventProcessor
 	private Map<ModulationFormat, int[]> numSlotsPerModulationPerService;	
 	private Map<List<Link>, Set<Link>> neighborLinks_p;
 	private Map<Link,Double> linkCostMap;
-	private StatisticsCalculator statsCalculator = new StatisticsCalculator();
+//	private StatisticsCalculator statsCalculator = new StatisticsCalculator();
 	private StatisticsCalculator_Algorithm statsCalculator_Algorithm = new StatisticsCalculator_Algorithm();
 	private List<SharedRiskGroup> srgs;
 	private TimeTrace stat_survivalTimeTrace;
@@ -120,7 +121,7 @@ public class OnLine_evProc_Survival_UPCT_UPC extends IEventProcessor
 		this.stat_transitoryInitTime = simTime;
 		this.stat_accumulatedCarriedTrafficInGbps = 0;
 		this.stat_accumulatedOfferedTrafficInGbps = 0;
-		this.isFinishedTransitory = true;
+//		this.isFinishedTransitory = true;
 	}
 	
 	@Override
@@ -128,12 +129,14 @@ public class OnLine_evProc_Survival_UPCT_UPC extends IEventProcessor
 	{
 		final double [] connectionBlockingOnConnectionSetup = new double[4];
 		double connectionBlockingOnConnectionSetupTotal = 0;
-//		final String fileName;
-		
 		final int lf = (int) this.loadFactor;
 		final double dataTime = simTime - stat_transitoryInitTime;	
-		
-		System.out.println("------------- " + rsaAlgorithmType.getString() + "------------- ");
+		String fileName;
+		String outputTimeTraceFileName = "D:/Projects/UPCT-UPC_Project/Results/Survival Study/Internet2/"+this.rsaAlgorithmType.getString()+"/survival_traffic_time_trace_"+Integer.toString(lf)+"_1.txt";
+
+		if (dataTime <= 0) { output.append ("<p>No time for data acquisition</p>"); return ""; }
+		output.append("<ul>");
+		output.append("<li>Current simulation time (s): ").append(simTime).append("</li>");
 		
 		for (int i = 0; i < 4 ; i++)
 		{
@@ -142,36 +145,30 @@ public class OnLine_evProc_Survival_UPCT_UPC extends IEventProcessor
 			connectionBlockingOnConnectionSetupTotal += connectionBlockingOnConnectionSetup[i];
 		}				
 		
-		if (dataTime <= 0) { output.append ("<p>No time for data acquisition</p>"); return ""; }
-
-		System.out.println("Mean Remaining Traffic: " + stat_meanRemainingTraffic/(double)stat_counter);
+		double meanSurvivalTraffic = stat_meanRemainingTraffic/(double)stat_counter;
+		
+		System.out.println("------------- " + rsaAlgorithmType.getString() + "------------- ");
+		System.out.println("Mean Remaining Traffic: " + meanSurvivalTraffic);
+		
 		if(incrementalMode.getBoolean())
 		{
 			if (this.rsaAlgorithmType.getString().equalsIgnoreCase("FACA"))
-			{
-//				String [] aux_name_param = StringUtils.split(this.metricRatio.getString(),", ");
-//				String [] frag_coef = StringUtils.split(aux_name_param[0],".");
-//				String [] conn_coef = StringUtils.split(aux_name_param[1],".");		
-//				fileName = "UPCT-UPC_Project/Results/NFSNetN14/CarriedTraffic/"+this.rsaAlgorithmType.getString()+"/flexgrid_carried_traffic_"+this.rsaAlgorithmType.getString()+".txt";
+			{	
+				fileName = "D:/Projects/UPCT-UPC_Project/Results/Survival Study/Internet2/"+this.rsaAlgorithmType.getString()+"/survival_traffic_"+this.rsaAlgorithmType.getString()+".txt";
 			}
 			System.out.println("Total Carried Traffic:" + this.stat_accumulatedCarriedTrafficInGbps);
-//			fileName = "UPCT-UPC_Project/Results/NFSNetN14/CarriedTraffic/"+this.rsaAlgorithmType.getString()+"/flexgrid_carried_traffic_"+Integer.toString(lf)+".txt";
+			fileName = "D:/Projects/UPCT-UPC_Project/Results/Survival Study/Internet2/"+this.rsaAlgorithmType.getString()+"/survival_traffic_"+Integer.toString(lf)+".txt";
 		}
 		else
 		{
 			connectionBlockingOnConnectionSetupTotal = connectionBlockingOnConnectionSetupTotal/4;
-			System.out.println("Num Offered Connections: " + this.stat_numOfferedConnections);
-			System.out.println("Num Carried Connections: " + this.stat_numCarriedConnections);
 			System.out.println("Blocking Probability: " + connectionBlockingOnConnectionSetupTotal );
-//			fileName = "UPCT-UPC_Project/Results/NFSNetN14/BlockingProbability/"+this.rsaAlgorithmType.getString()+"/flexgrid_blocking_probability_"+Integer.toString(lf)+".txt";
+			fileName = "D:/Projects/UPCT-UPC_Project/Results/Survival Study/Internet2/"+this.rsaAlgorithmType.getString()+"/survival_traffic_"+Integer.toString(lf)+".txt";
 		}	
-		
-		output.append("<ul>");
-		output.append("<li>Current simulation time (s): ").append(simTime).append("</li>");
 			
 		// This part is for writing the results into a file
 		
-/*		File file = new File(fileName);
+		File file = new File(fileName);
 		if (!file.exists()){
 			try {
 				file.createNewFile();
@@ -183,30 +180,25 @@ public class OnLine_evProc_Survival_UPCT_UPC extends IEventProcessor
 		try {
 			FileWriter fw = new FileWriter(file,true);
 			if(incrementalMode.getBoolean())
-				fw.write(Double.toString(this.stat_accumulatedCarriedTrafficInGbps)+"\r\n");
+				fw.write(Double.toString(this.stat_accumulatedCarriedTrafficInGbps)+" "+Double.toString(meanSurvivalTraffic)+"\r\n");
 			else
-				fw.write(Double.toString(connectionBlockingOnConnectionSetupTotal)+"\r\n");
+				fw.write(Double.toString(connectionBlockingOnConnectionSetupTotal)+" "+Double.toString(meanSurvivalTraffic)+"\r\n");
 			fw.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		*/
-//		String fileInputsName = "UPCT-UPC_Project/Results/NFSNetN14/"+this.rsaAlgorithmType.getString()+"/"+Integer.toString(lf)+"/flexgrid_inputResults_1.txt";
-//		String fileOutputsName = "UPCT-UPC_Project/Results/NFSNetN14/"+this.rsaAlgorithmType.getString()+"/"+Integer.toString(lf)+"/flexgrid_outputResults_1.txt";
 		
-		String outputFileName = "survival_"+rsaAlgorithmType.getString()+"_"+Integer.toString(lf)+".txt";
-		
-/*		int i = 1;
-		while (fileInputs.exists())
+		// Storing time trace results into a file
+		int i = 1;
+		while (new File (outputTimeTraceFileName).exists())
 		{
 			i++;
-	//		fileInputsName = "UPCT-UPC_Project/Results/NFSNetN14/"+this.rsaAlgorithmType.getString()+"/"+Integer.toString(lf)+"/flexgrid_inputResults_"+Integer.toString(i)+".txt";
-	//		fileOutputsName = "UPCT-UPC_Project/Results/NFSNetN14/"+this.rsaAlgorithmType.getString()+"/"+Integer.toString(lf)+"/flexgrid_outputResults_"+Integer.toString(i)+".txt";
+			outputTimeTraceFileName = "D:/Projects/UPCT-UPC_Project/Results/Survival Study/Internet2/"+this.rsaAlgorithmType.getString()+"/survival_traffic_time_trace_"+Integer.toString(lf)+"_"+Integer.toString(i)+".txt";
 		} 
-*/	
+	
 		if (this.timeTraceMode.getBoolean())
-			stat_survivalTimeTrace.printToFile(new File (outputFileName));
+			stat_survivalTimeTrace.printToFile(new File (outputTimeTraceFileName));
 		
 		return "Blocking evolution";
 	}
@@ -397,15 +389,6 @@ public class OnLine_evProc_Survival_UPCT_UPC extends IEventProcessor
 						fiberSlotOccupancyMap_fs.set (fiber.getIndex () , slotId , 1);
 					}
 				}
-				
-								
-//				System.out.println("Bandwidth In Gbps :" + lineRateGbps);
-//				System.out.println("Initial Slot Id: " + initialSlotId);
-//				System.out.println("Num Slots:" + numSlots);
-//				System.out.println("Modulation Format :" + modulationFormat.name);
-//				System.out.println("seqFibers: " + seqFibers.toString());
-//				System.out.println("numSlots: " + numSlots);
-//				
 						
 				attributes.put("initialSlotId", Integer.toString(initialSlotId));
 				attributes.put("numSlots", Integer.toString(numSlots));
@@ -429,17 +412,12 @@ public class OnLine_evProc_Survival_UPCT_UPC extends IEventProcessor
 						stat_survivalTimeTrace.add(simTime, stat_meanRemainingTraffic/stat_counter);
 				
 				}			
-								
-//				if(this.isFinishedTransitory && this.timeTraceMode.getBoolean())
-//					this.statsCalculator.networkStateChanged(totalAvailableSlotsPerFiber, simTime,fiberSlotOccupancyMap_fs);
-//				
+			
 			}
 		}					
 		else if (event.getEventObject () instanceof WDMUtils.LightpathRemove)
 		{
 			WDMUtils.LightpathRemove removeLpEvent = (WDMUtils.LightpathRemove) event.getEventObject ();
-			
-	//		if (dM) System.out.print("Release lp. Num lps before (occupied slots)  " + currentNetPlan.getNumberOfRoutes() + "/" + fiberSlotOccupancyMap_fs.zSum());
 			
 			Route removedLp = removeLpEvent.lp;
 			
@@ -752,8 +730,6 @@ public class OnLine_evProc_Survival_UPCT_UPC extends IEventProcessor
 						double currentAlgConn = algConnArray[serviceId];
 
 						double final_metrics = metricRatioArray[0]*f_cmt/norm_c_cmt+metricRatioArray[1]*norm_alg_con/currentAlgConn;
-					//	System.out.println("F_cmt" + f_cmt);
-					//	System.out.println("AC " + currentAlgConn);
 						
 						if (bestAllocation == null || final_metrics < best_f_metrics)
 						{
@@ -778,15 +754,16 @@ public class OnLine_evProc_Survival_UPCT_UPC extends IEventProcessor
 	private static double computeMeanRemainingTraffic(NetPlan currentNetPlan, List<SharedRiskGroup> srgs )
 	{
 		double remainingTraffic = 0.0;
+		final double currentTraffic = currentNetPlan.getDemandTotalCarriedTraffic();
 		for (SharedRiskGroup srg : srgs)
 		{
-			NetPlan simulatedNetPlan = currentNetPlan.copy();
+			NetPlan simulatedNetPlan = currentNetPlan.copy();			
 			Set<Route> simulatedDownRoutes = srg.getAffectedRoutes();
 			for (Route downRoute : simulatedDownRoutes)	simulatedNetPlan.getRouteFromId(downRoute.getId()).remove();		
 			remainingTraffic += simulatedNetPlan.getDemandTotalCarriedTraffic();
 		}
 		
-		return remainingTraffic/(double)srgs.size();
+		return 100*(remainingTraffic/(double)srgs.size())/currentTraffic;
 	}
 	
 	private static int compute_f_c(List<Link> seqFibers, int initialSlotId, int numSlots, DoubleMatrix2D fiberSlotOccupancyMap_fs, int totalAvailableSlotsPerFiber)
