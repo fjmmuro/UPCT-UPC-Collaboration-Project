@@ -16,31 +16,33 @@ import cern.jet.math.tdouble.DoubleFunctions;
 
 public class StatisticsCalculator 
 {
-	private int S; // number of slots in every fiber link
-	private int B; // number of services
-	private int N;
+	private static int S; // number of slots in every fiber link
+	private static int B; // number of services
+	private static int N;
 	private int E;
+	private static int C;
 	DoubleMatrix2D occupancy_es;
-	private DoubleMatrix2D [] A_b;
-	private int [] slotsPerService;
-	private NetPlan np;
-	private NetworkLayer wdmLayer;
+	private static DoubleMatrix2D [] A_b;
+	private static int [] slotsPerService;
+	private static NetPlan np;
+	private static NetworkLayer wdmLayer;
 	private TimeTrace stat_connectivityEigenValuePerService; // simTimeOfChange ; new values of connectivity per service 	
 	
 	public StatisticsCalculator ()
 	{		
 	}
 	
-	public StatisticsCalculator (NetPlan np , NetworkLayer wdmLayer , int [] slotsPerService , int totalNumSlotsPerLink)
+	public StatisticsCalculator (NetPlan np , NetworkLayer wdmLayer , int [] slotsPerService , int totalNumSlotsPerLink, int linkCapacity)
 	{
-		this.np = np;
-		this.wdmLayer = wdmLayer;
-		this.S = totalNumSlotsPerLink;
-		this.N = np.getNumberOfNodes ();
+		StatisticsCalculator.np = np;
+		StatisticsCalculator.wdmLayer = wdmLayer;
+		StatisticsCalculator.S = totalNumSlotsPerLink;
+		StatisticsCalculator.N = np.getNumberOfNodes ();
 		this.E = np.getNumberOfLinks(wdmLayer);
-		this.B = slotsPerService.length; 					// Number of services
-		this.slotsPerService = slotsPerService;			
-		this.A_b = new DoubleMatrix2D [B];					// Adjacency Matrix for all the B services
+		StatisticsCalculator.B = slotsPerService.length; 					// Number of services
+		StatisticsCalculator.setSlotsPerService(slotsPerService);			
+		StatisticsCalculator.A_b = new DoubleMatrix2D [B];					// Adjacency Matrix for all the B services
+		StatisticsCalculator.C = linkCapacity;
 		for (int b = 0 ; b < B ; b ++)
 		{
 			final int numSlotsThisService = slotsPerService [b];
@@ -52,17 +54,17 @@ public class StatisticsCalculator
 	}
 
 	
-	public void setStatisticsCalculator (NetPlan np , NetworkLayer wdmLayer , int [] slotsPerService , int totalNumSlotsPerLink)
+	public void setStatisticsCalculator (NetPlan np , NetworkLayer wdmLayer , int [] slotsPerService , int totalNumSlotsPerLink,int linkCapacity)
 	{
-		this.np = np;
-		this.wdmLayer = wdmLayer;
-		this.S = totalNumSlotsPerLink;
-		this.N = np.getNumberOfNodes ();
+		StatisticsCalculator.np = np;
+		StatisticsCalculator.wdmLayer = wdmLayer;
+		StatisticsCalculator.S = totalNumSlotsPerLink;
+		StatisticsCalculator.N = np.getNumberOfNodes ();
 		this.E = np.getNumberOfLinks(wdmLayer);
-		this.B = slotsPerService.length; 					// Number of services
-		this.slotsPerService = slotsPerService;			
-		this.A_b = new DoubleMatrix2D [B];					// Adjacency Matrix for all the B services
-		
+		StatisticsCalculator.B = slotsPerService.length; 					// Number of services
+		StatisticsCalculator.setSlotsPerService(slotsPerService);			
+		StatisticsCalculator.A_b = new DoubleMatrix2D [B];					// Adjacency Matrix for all the B services
+		StatisticsCalculator.C = linkCapacity;
 		for (int b = 0 ; b < B ; b ++)
 		{
 			final int numSlotsThisService = slotsPerService [b];
@@ -74,7 +76,7 @@ public class StatisticsCalculator
 	}
 	
 	
-	public void networkStateChanged (int linkCapacity, double simTime , DoubleMatrix2D newOccupancy_es)
+	public static double[] getAlgebraicConnectivityPerService (DoubleMatrix2D newOccupancy_es)
 	{
 		/* Initialize the adjacency matrices */
 		for (int b = 0; b < B ; b ++) A_b [b] = DoubleFactory2D.dense.make(N,N);
@@ -92,7 +94,7 @@ public class StatisticsCalculator
 					final int sizeOfTheAllocationBlock = s - lastOccupiedSlotFound - 1;
 					for (int b = 0; b < B ; b ++)
 					{
-						final int numSlotsThisService = slotsPerService [b];
+						final int numSlotsThisService = getSlotsPerService() [b];
 						final double numAllocationPossibilities = (sizeOfTheAllocationBlock < numSlotsThisService)? 0 : sizeOfTheAllocationBlock - numSlotsThisService + 1;
 						A_b [b].set(a_e, b_e, A_b [b].get(a_e,b_e) + numAllocationPossibilities);
 					}
@@ -103,12 +105,11 @@ public class StatisticsCalculator
 			final int sizeOfTheAllocationBlock = S - lastOccupiedSlotFound - 1;
 			for (int b = 0; b < B ; b ++)
 			{
-				final int numSlotsThisService = slotsPerService [b];
+				final int numSlotsThisService = getSlotsPerService() [b];
 				final double numAllocationPossibilities = (sizeOfTheAllocationBlock < numSlotsThisService)? 0 : sizeOfTheAllocationBlock - numSlotsThisService + 1;
 				A_b [b].set(a_e, b_e, A_b [b].get(a_e,b_e) + numAllocationPossibilities);
 			}
 		}
-		
 		
 		/* This is for computing the eigenvalues of the matrices */
 		DenseDoubleAlgebra alg = new DenseDoubleAlgebra ();
@@ -116,57 +117,62 @@ public class StatisticsCalculator
 		double [] newValueOfConnectivity_b_Outputs = new double [B];
 		double [] newValueOfConnectivity_b = new double[B];
 		
-		
 		for (int b = 0 ; b < B ; b ++)
 		{				
-			DoubleMatrix2D laplMatrixIn = builtNormailizedLaplacianMatrix(linkCapacity, A_b[b],"In");
+			DoubleMatrix2D laplMatrixIn = builtNormailizedLaplacianMatrix(C, A_b[b],"In");
+			
+	//		System.out.println("Incoming Laplacian Flag ");
 			
 			DenseDoubleEigenvalueDecomposition decIn = alg.eig(laplMatrixIn);
 			DoubleMatrix1D realPartsIn = decIn.getRealEigenvalues().viewSorted();
 			
-			Double auxIn = 0.0;
-			for (int i = 1; i < realPartsIn.toArray().length; i++)
+			double auxAlgConnIn = 0.0;
+			for (double realIn : realPartsIn.toArray())
 			{
-				if (realPartsIn.get(i) > 0.0000001){
-					auxIn = realPartsIn.get(i);
-					i =  realPartsIn.toArray().length; 
+				if (realIn > 0.0000001){
+					auxAlgConnIn = realIn;
+					break; 
 				}		
 			}		
-			newValueOfConnectivity_b_Inputs[b] = auxIn;
+			newValueOfConnectivity_b_Inputs[b] = auxAlgConnIn;
 			
-			DoubleMatrix2D laplMatrixOut = builtNormailizedLaplacianMatrix(linkCapacity,A_b[b],"Out");			
+			DoubleMatrix2D laplMatrixOut = builtNormailizedLaplacianMatrix(C,A_b[b],"Out");	
+			
+	//		System.out.println("Outgoing Laplacian Flag ");
+			
 			DenseDoubleEigenvalueDecomposition decOut = alg.eig(laplMatrixOut);
-			DoubleMatrix1D realPartsOut = decOut.getRealEigenvalues().viewSorted();
+			DoubleMatrix1D realPartsOut = decOut.getRealEigenvalues().viewSorted();					
 			
-			Double auxOut = 0.0;
-			for (int j = 1; j < realPartsOut.toArray().length; j++)
-			{
-				if (realPartsOut.get(j) > 0.0000001)
+			double auxAlgConnOut = 0.0;
+			for (double realOut : realPartsOut.toArray())
+			{		
+				if (realOut > 0.0000001)
 				{
-					auxOut = realPartsOut.get(j);
-					j = realPartsOut.toArray().length;
+					auxAlgConnOut = realOut;
+					break;
 				}
 			}
-			newValueOfConnectivity_b_Outputs[b] = auxOut;			
+			newValueOfConnectivity_b_Outputs[b] = auxAlgConnOut;			
 
 			// Return the mean between values of incoming and outgoing links connectivity
-			newValueOfConnectivity_b[b] = (auxOut+auxIn)/2;		
+			newValueOfConnectivity_b[b] = (auxAlgConnOut+auxAlgConnIn)/2;	
+			
+	//		System.out.println("Ending Flag ");
 				
 		}
-		if (newValueOfConnectivity_b != null)		
-			stat_connectivityEigenValuePerService.add(simTime, newValueOfConnectivity_b);				
+		return newValueOfConnectivity_b;				
 
 	}
 
 
-	private DoubleMatrix2D builtNormailizedLaplacianMatrix(int linkCapacity, DoubleMatrix2D A, String InOut){
+	private static DoubleMatrix2D builtNormailizedLaplacianMatrix(int linkCapacity, DoubleMatrix2D A, String InOut){
 		
 		DoubleMatrix2D lapMatrix = DoubleFactory2D.dense.make(N,N);
 		DoubleMatrix2D diagK = DoubleFactory2D.dense.make(N,N);	
 		
 		DoubleMatrix2D aux = A.assign(DoubleFunctions.div(linkCapacity));
 		
-		for(int n = 0; n < this.N; n++)
+		for(int n = 0; n < N; n++)
 		{
 			if (InOut.equalsIgnoreCase("In"))
 				diagK.set(n,n, aux.viewRow(n).zSum());	
@@ -184,5 +190,13 @@ public class StatisticsCalculator
 		stat_connectivityEigenValuePerService.printToFile(new File (fileInputs));
 		
 		return "Done";
+	}
+
+	public static int [] getSlotsPerService() {
+		return slotsPerService;
+	}
+
+	public static void setSlotsPerService(int [] slotsPerService) {
+		StatisticsCalculator.slotsPerService = slotsPerService;
 	}
 }
