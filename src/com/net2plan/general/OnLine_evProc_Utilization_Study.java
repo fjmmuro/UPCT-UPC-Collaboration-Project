@@ -24,7 +24,6 @@ import com.net2plan.interfaces.networkDesign.Node;
 import com.net2plan.interfaces.networkDesign.Route;
 import com.net2plan.interfaces.simulation.IEventProcessor;
 import com.net2plan.interfaces.simulation.SimEvent;
-import com.net2plan.libraries.FlexGridUtils;
 import com.net2plan.libraries.GraphUtils;
 import com.net2plan.libraries.WDMUtils;
 import com.net2plan.utils.CollectionUtils;
@@ -71,13 +70,15 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 	private long stat_numOfferedConnections , stat_numCarriedConnections;
 	
 	private long[] stat_offeredConnectionsPerService, stat_carriedConnectionsPerService;
+	private double[][] stat_demandOfferedTrafficArray;
+	private double[][] stat_demandCarriedTrafficArray;
 	private double stat_transitoryInitTime;
 	private double stat_accumulatedCarriedTrafficInGbps , stat_accumulatedOfferedTrafficInGbps;
 
 	private Boolean dM;
 
 	private InputParameter bandwidthInGbpsPerService = new InputParameter ("bandwidthInGbpsPerService", "400 100 40 10", "Set of bandwidth services");
-	private InputParameter distanceAdaptive = new InputParameter ("distanceAdaptive", (Boolean) false, "Indicates whether distance-adaptive modulation formats are used");
+	private InputParameter distanceAdaptive = new InputParameter ("distanceAdaptive", (Boolean) true, "Indicates whether distance-adaptive modulation formats are used");
 	private InputParameter incrementalMode = new InputParameter ("incrementalMode", (Boolean) false,"Indicates whether simulation should end after the first blocking event");
 	private InputParameter samplingTimeInSeconds = new InputParameter ("samplingTimeInSeconds", (double) 1, "Interval to gather partial results");
 	private InputParameter slotGranularityInGHz = new InputParameter ("slotGranularityInGHz", (double) 12.5, "Slot granularity (in GHz)");
@@ -119,48 +120,19 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 		final double [] connectionBlockingOnConnectionSetup = new double[4];
 		double connectionBlockingOnConnectionSetupTotal = 0;
 
-		final String fileName;
+		String fileName = "null";
 		
 		final int lf = (int) this.loadFactor;
 		final double dataTime = simTime - stat_transitoryInitTime;	
 		
-//		System.out.println("------------- " + rsaAlgorithmType.getString() + "------------- ");
-		
 		for (int i = 0; i < 4 ; i++)
 		{
 			connectionBlockingOnConnectionSetup[i] = this.stat_offeredConnectionsPerService[i] == 0? 0.0 : 1 - (((double) this.stat_carriedConnectionsPerService[i]) / ((double) this.stat_offeredConnectionsPerService[i]));
-//			System.out.println("Service [" + bandwidthInGbpsPerServiceArray[i] + "]: " +connectionBlockingOnConnectionSetup[i]);
 			connectionBlockingOnConnectionSetupTotal += connectionBlockingOnConnectionSetup[i];
-		}				
+		}
 		
 		if (dataTime <= 0) { output.append ("<p>No time for data acquisition</p>"); return ""; }
-
-		if(incrementalMode.getBoolean())
-		{
-//			System.out.println("Total Carried Traffic:" + this.stat_accumulatedCarriedTrafficInGbps);
-			if (this.rsaAlgorithmType.getString().equalsIgnoreCase("FACA"))
-			{
-				String [] aux_name_param = StringUtils.split(this.metricRatio.getString(),", ");
-				String [] frag_coef = StringUtils.split(aux_name_param[0],".");
-				String [] conn_coef = StringUtils.split(aux_name_param[1],".");
-				fileName = "UPCT-UPC_Project/Results/NFSNetN14/CarriedTraffic/"+this.rsaAlgorithmType.getString()+"/flexgrid_carried_traffic_"+this.rsaAlgorithmType.getString()+frag_coef[0]+frag_coef[1]+conn_coef[0]+conn_coef[1]+".txt";
-			}
-			else
-				fileName = "UPCT-UPC_Project/Results/NFSNetN14/CarriedTraffic/"+this.rsaAlgorithmType.getString()+"/flexgrid_carried_traffic_"+this.rsaAlgorithmType.getString()+".txt";
-		}
-		else
-		{
-			connectionBlockingOnConnectionSetupTotal = connectionBlockingOnConnectionSetupTotal/4;
-			if (this.rsaAlgorithmType.getString().equalsIgnoreCase("FACA"))
-			{
-				String [] aux_name_param = StringUtils.split(this.metricRatio.getString(),", ");
-				String [] frag_coef = StringUtils.split(aux_name_param[0],".");
-				String [] conn_coef = StringUtils.split(aux_name_param[1],".");
-				fileName = "UPCT-UPC_Project/Results/NFSNetN14/BlockingProbability/"+this.rsaAlgorithmType.getString()+"/flexgrid_blocking_probability_"+this.rsaAlgorithmType.getString()+frag_coef[0]+frag_coef[1]+conn_coef[0]+conn_coef[1]+"_"+Integer.toString(lf)+".txt";
-			}
-			else
-				fileName = "UPCT-UPC_Project/Results/NFSNetN14/BlockingProbability/"+this.rsaAlgorithmType.getString()+"/flexgrid_blocking_probability_"+this.rsaAlgorithmType.getString()+"_"+Integer.toString(lf)+".txt";
-		}	
+		int i = 0;
 		
 		output.append("<ul>");
 		output.append("<li>Current simulation time (s): ").append(simTime).append("</li>");
@@ -168,20 +140,57 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 		// This part is for writing the results into a file
 		
 		File file = new File(fileName);
-		if (!file.exists()){
-			try {
-				file.createNewFile();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+		while(file.exists()){			
+			if(incrementalMode.getBoolean())
+			{
+				if (this.rsaAlgorithmType.getString().equalsIgnoreCase("FACA"))
+				{
+					String [] aux_name_param = StringUtils.split(this.metricRatio.getString(),", ");
+					String [] frag_coef = StringUtils.split(aux_name_param[0],".");
+					String [] conn_coef = StringUtils.split(aux_name_param[1],".");
+					fileName = "D:/Projects/UPCT-UPC_Project/Results/UtilityStudy/"+this.rsaAlgorithmType.getString()+"/flexgrid_carried_traffic_"+this.rsaAlgorithmType.getString()+frag_coef[0]+frag_coef[1]+conn_coef[0]+conn_coef[1]+"_"+Integer.toString(i)+".txt";
+				}
+				else
+					fileName = "D:/Projects/UPCT-UPC_Project/Results/UtilityStudy/"+this.rsaAlgorithmType.getString()+"/flexgrid_carried_traffic_"+this.rsaAlgorithmType.getString()+"_"+Integer.toString(i)+"txt";
 			}
+			else
+			{
+				connectionBlockingOnConnectionSetupTotal = connectionBlockingOnConnectionSetupTotal/4;
+				if (this.rsaAlgorithmType.getString().equalsIgnoreCase("FACA"))
+				{
+					String [] aux_name_param = StringUtils.split(this.metricRatio.getString(),", ");
+					String [] frag_coef = StringUtils.split(aux_name_param[0],".");
+					String [] conn_coef = StringUtils.split(aux_name_param[1],".");
+					fileName = "D:/Projects/UPCT-UPC_Project/Results/UtilityStudy/"+this.rsaAlgorithmType.getString()+"/flexgrid_utilization_study_"+this.rsaAlgorithmType.getString()+frag_coef[0]+frag_coef[1]+conn_coef[0]+conn_coef[1]+"_"+Integer.toString(lf)+"_"+Integer.toString(i)+".txt";
+				}
+				else
+					fileName = "D:/Projects/UPCT-UPC_Project/Results/UtilityStudy/"+this.rsaAlgorithmType.getString()+"/flexgrid_utilization_study_"+this.rsaAlgorithmType.getString()+"_"+Integer.toString(lf)+"_"+Integer.toString(i)+".txt";
+			}
+			file = new File(fileName);
+			i++;
 		}
+		
+		try {
+			file.createNewFile();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 		try {
 			FileWriter fw = new FileWriter(file,true);
 			if(incrementalMode.getBoolean())
 				fw.write(Double.toString(this.stat_accumulatedCarriedTrafficInGbps)+"\r\n");
 			else{
-				fw.write(Double.toString(connectionBlockingOnConnectionSetupTotal)+"\r\n");
+				for(int j = 0; j <= 71; j++)
+				{
+					for(int k = 0; k < stat_demandCarriedTrafficArray[1].length; k++){
+						fw.write(Integer.toString(j)+" ");
+						fw.write(Double.toString(bandwidthInGbpsPerServiceArray[k])+" ");
+						fw.write(Double.toString(stat_demandOfferedTrafficArray[j][k])+" ");
+						fw.write(Double.toString(stat_demandCarriedTrafficArray[j][k])+"\r\n");
+					}
+				}
 			}
 				
 			fw.close();
@@ -189,20 +198,9 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-//		String fileInputsName = "UPCT-UPC_Project/Results/NFSNetN14/"+this.rsaAlgorithmType.getString()+"/"+Integer.toString(lf)+"/flexgrid_inputResults_1.txt";
-//		String fileOutputsName = "UPCT-UPC_Project/Results/NFSNetN14/"+this.rsaAlgorithmType.getString()+"/"+Integer.toString(lf)+"/flexgrid_outputResults_1.txt";
-		
+	
 		String fileInputsName = "fileInputsName"+Integer.toString(lf)+".txt";
-		
-/*		int i = 1;
-		while (fileInputs.exists())
-		{
-			i++;
-	//		fileInputsName = "UPCT-UPC_Project/Results/NFSNetN14/"+this.rsaAlgorithmType.getString()+"/"+Integer.toString(lf)+"/flexgrid_inputResults_"+Integer.toString(i)+".txt";
-	//		fileOutputsName = "UPCT-UPC_Project/Results/NFSNetN14/"+this.rsaAlgorithmType.getString()+"/"+Integer.toString(lf)+"/flexgrid_outputResults_"+Integer.toString(i)+".txt";
-		} 
-*/	
+
 		if (this.timeTraceMode.getBoolean())
 			this.statsCalculator.finish(fileInputsName);
 		
@@ -231,7 +229,6 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 
 		dM = this.debugMode.getBoolean();		
 		
-//		double[] u_e = initialNetPlan.getLinkCapacityVector();
 		// Capacity in number of slots int ----> FlexigridUtils
 		DoubleMatrix1D u_e = initialNetPlan.getVectorLinkCapacity();
 		if (DoubleUtils.unique(u_e.toArray()).length > 1) throw new Net2PlanException("All fibers must have the same installed capacity");
@@ -252,7 +249,6 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 		
 		String[] aux_metricRatio = StringUtils.split(this.metricRatio.getString()," ");
 		metricRatioArray = StringUtils.toDoubleArray(aux_metricRatio);
-		for (double doub : metricRatioArray) System.out.println(doub);
 		if ((metricRatioArray[0] + metricRatioArray[1]) != 1.0 ) throw new Net2PlanException("The metrics proportion is not correct");
 
 		fiberSlotOccupancyMap_fs = DoubleFactory2D.dense.make (E , totalAvailableSlotsPerFiber);	
@@ -290,7 +286,6 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 				for (List<Link> seqFibers : paths)
 					neighborLinks_p.put(seqFibers, computeNeighborLinks(initialNetPlan, seqFibers));
 		}	
-		
 		
 		DoubleMatrix1D linkLengthInKmMap = DoubleFactory1D.dense.make(E);
 		for (Link e : initialNetPlan.getLinks()) linkLengthInKmMap.set(e.getIndex(), e.getLengthInKm());			
@@ -332,7 +327,11 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 			modulationFormatPerPath = WDMUtils2.computeModulationFormatPerPath(cpl, linkLengthInKmMap, candidateModulationFormats);
 			
 		}
-
+		
+		stat_demandOfferedTrafficArray = new double[initialNetPlan.getDemandIds().size()][numServices];
+		stat_demandCarriedTrafficArray = new double[initialNetPlan.getDemandIds().size()][numServices];
+		
+		
 		stat_accumulatedCarriedTrafficInGbps = 0;
 				
 		this.finishTransitory(0);
@@ -360,6 +359,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 			
 			this.stat_offeredConnectionsPerService[serviceId]++;
 			this.stat_accumulatedOfferedTrafficInGbps += lineRateGbps;	
+			this.stat_demandOfferedTrafficArray[demand.getIndex()][serviceId] += lineRateGbps;
 			
 			Quadruple<List<Link>, ModulationFormat, Integer, Integer> allocation = findPotentialAllocationForConnection(currentNetPlan, demand , lineRateGbps , serviceId);
 			if (allocation == null)
@@ -413,14 +413,13 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 				Route newRoute= currentNetPlan.addRoute(demand, lineRateGbps, numSlots, finalseqFibers, attributes);
 				addLpEvent.lpAddedToFillByProcessor = newRoute;
 				
-				
+				// Update the carried traffic of the demands (and services)
+				this.stat_demandCarriedTrafficArray[demand.getIndex()][serviceId] += lineRateGbps; 	//	It's needed including o create an index that awares the services and the demands jointly 
 			}
 		}					
 		else if (event.getEventObject () instanceof WDMUtils.LightpathRemove)
 		{
 			WDMUtils.LightpathRemove removeLpEvent = (WDMUtils.LightpathRemove) event.getEventObject ();
-			
-	//		if (dM) System.out.print("Release lp. Num lps before (occupied slots)  " + currentNetPlan.getNumberOfRoutes() + "/" + fiberSlotOccupancyMap_fs.zSum());
 			
 			Route removedLp = removeLpEvent.lp;
 			
@@ -440,9 +439,6 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 			}
 			removedLp.remove();
 			
-			
-	//		if (dM) System.out.println(" --> at the end: " + currentNetPlan.getNumberOfRoutes() + "/" + fiberSlotOccupancyMap_fs.zSum());
-
 		}
 		else if(event.getEventObject() instanceof Double){
 			this.loadFactor = (Double) event.getEventObject ();			
@@ -523,7 +519,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 				final int numSlots = numSlotsPerModulationPerService.get(modulationFormat)[serviceId];
 
 				final TreeSet<Integer> pathSlotOccupancy = WDMUtils2.computePathSlotOccupancy(seqFibers, fiberSlotOccupancyMap_fs, totalAvailableSlotsPerFiber);
-				final List<Pair<Integer, Integer>> candidateVoids = FlexGridUtils.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
+				final List<Pair<Integer, Integer>> candidateVoids = WDMUtils2.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
 
 				int residualCapacity = 0;
 				for (Pair<Integer, Integer> candidateVoid : candidateVoids)
@@ -574,7 +570,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 
 				// Compute the available candidate to allocate the service
 				final TreeSet<Integer> pathSlotOccupancy = WDMUtils2.computePathSlotOccupancy(seqFibers, fiberSlotOccupancyMap_fs, totalAvailableSlotsPerFiber);
-				final List<Pair<Integer, Integer>> candidateVoids = FlexGridUtils.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
+				final List<Pair<Integer, Integer>> candidateVoids = WDMUtils2.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
 	
 				for(Pair<Integer,Integer> candidateVoid : candidateVoids)
 				{
@@ -599,7 +595,6 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 							pathCostInKm += this.linkCostMap.get(fiber);
 						}						
 						double [] algConnArray = StatisticsCalculator.getAlgebraicConnectivityPerService(newfiberSlotOccupancyMap);
-//						double currentAlgConn = new DenseDoubleMatrix1D(algConnArray).zSum()/((double) algConnArray.length);
 						double currentAlgConn = algConnArray[serviceId];
 						
 						if (currentAlgConn > bestAlgConnAux)
@@ -662,7 +657,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 
 				// Compute the available candidate to allocate the service
 				final TreeSet<Integer> pathSlotOccupancy = WDMUtils2.computePathSlotOccupancy(seqFibers, fiberSlotOccupancyMap_fs, totalAvailableSlotsPerFiber);
-				final List<Pair<Integer, Integer>> candidateVoids = FlexGridUtils.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
+				final List<Pair<Integer, Integer>> candidateVoids = WDMUtils2.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
 	
 				Pair<Integer,Integer> candidateVoid = null;
 				for(Pair<Integer,Integer> candidate : candidateVoids)
@@ -692,14 +687,10 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 						}
 						pathCostInKm += this.linkCostMap.get(fiber);
 					}
-//					System.out.println("---- A Initial Slot Id is chosen ----");
 					double [] algConnArray = StatisticsCalculator.getAlgebraicConnectivityPerService(newfiberSlotOccupancyMap);
-//					double currentAlgConn = new DenseDoubleMatrix1D(algConnArray).zSum()/((double) algConnArray.length);
 					double currentAlgConn = algConnArray[serviceId];
 					
-//					System.out.println("---- Algebraic Connectivity is calculated ----");
-					
-					if (currentAlgConn > bestAlgConnAux)
+				if (currentAlgConn > bestAlgConnAux)
 					{
 						bestAlgConnAux = currentAlgConn;
 						bestInitialSlotId = firstPossibleInitialSlotId;
@@ -722,15 +713,6 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 					}		
 				}
 			}
-			if(dM)
-			{					
-				System.out.println("------- Best Candidate -----------");
-				System.out.println("Best Mean Algebraic Connectivity: " + bestAlgConnAux);
-				System.out.println("Best Initial Slot Id: " + bestInitialSlotId);
-				System.out.println("Route Length: " + bestRouteLength);
-			}
-			
-			if(dM) System.out.println("----------------------Ending of computing candidates---------------------");
 			return bestAllocation;
 		}
 		
@@ -755,7 +737,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 
 				// Compute the available candidate to allocate the service
 				final TreeSet<Integer> pathSlotOccupancy = WDMUtils2.computePathSlotOccupancy(seqFibers, fiberSlotOccupancyMap_fs, totalAvailableSlotsPerFiber);
-				final List<Pair<Integer, Integer>> candidateVoids = FlexGridUtils.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);				
+				final List<Pair<Integer, Integer>> candidateVoids = WDMUtils2.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);				
 				
 				int residualCapacity = 0;				
 				Double currentPathAlgConn = 0.0;
@@ -827,7 +809,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 			if (bestSeqFibers != null)
 			{
 				final TreeSet<Integer> pathSlotOccupancy = WDMUtils2.computePathSlotOccupancy(bestSeqFibers, fiberSlotOccupancyMap_fs, totalAvailableSlotsPerFiber);
-				final List<Pair<Integer, Integer>> candidateVoids = FlexGridUtils.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
+				final List<Pair<Integer, Integer>> candidateVoids = WDMUtils2.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
 				
 				for (Pair<Integer, Integer> candidateVoid : candidateVoids)
 				{				
@@ -875,7 +857,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 				final int numSlots = numSlotsPerModulationPerService.get(modulationFormat)[serviceId];
 				
 				final TreeSet<Integer> pathSlotOccupancy = WDMUtils2.computePathSlotOccupancy(seqFibers, fiberSlotOccupancyMap_fs, totalAvailableSlotsPerFiber);
-				final List<Pair<Integer, Integer>> candidateVoids = FlexGridUtils.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
+				final List<Pair<Integer, Integer>> candidateVoids = WDMUtils2.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
 
 				int residualCapacity = 0;
 				for (Pair<Integer, Integer> candidateVoid : candidateVoids)
@@ -983,7 +965,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 				final int numSlots = numSlotsPerModulationPerService.get(modulationFormat)[serviceId];
 
 				final TreeSet<Integer> pathSlotOccupancy = WDMUtils2.computePathSlotOccupancy(seqFibers, fiberSlotOccupancyMap_fs, totalAvailableSlotsPerFiber);
-				final List<Pair<Integer, Integer>> candidateVoids = FlexGridUtils.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
+				final List<Pair<Integer, Integer>> candidateVoids = WDMUtils2.computeAvailableSpectrumVoids(pathSlotOccupancy, totalAvailableSlotsPerFiber);
 
 				int residualCapacity = 0;
 				for (Pair<Integer, Integer> candidateVoid : candidateVoids)
