@@ -72,6 +72,8 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 	private long[] stat_offeredConnectionsPerService, stat_carriedConnectionsPerService;
 	private double[][] stat_demandOfferedTrafficArray;
 	private double[][] stat_demandCarriedTrafficArray;
+	private int[][] stat_demandOfferedConnectionsArray;
+	private int[][] stat_demandCarriedConnectionsArray;
 	private double stat_transitoryInitTime;
 	private double stat_accumulatedCarriedTrafficInGbps , stat_accumulatedOfferedTrafficInGbps;
 
@@ -92,7 +94,6 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 	private InputParameter maxLightpathNumHops = new InputParameter ("MaxLightpathNumHops", (int) -1 , "A lightpath cannot have more than this number of hops. A non-positive number means this limit does not exist");
 	private InputParameter trafficLayerId = new InputParameter ("trafficLayerId", (long) -1 , "Layer containing traffic demands (-1 means default layer)");
 	private InputParameter modulationFormat = new InputParameter ("modulationFormat", "#select# BPSK QPSK 8-QAM 16-QAM", "Selects the modulation format of the routes (No distance-adaptive only)");
-	private InputParameter timeTraceMode = new InputParameter("timeTraceMode",(Boolean) false, "Indicates wheater simulation saves in a file a time trace of the algebraic connectivity per service");
 	
 	private Map<Pair<Node,Node>,List<List<Link>>> cpl;
 	private int N;
@@ -187,6 +188,8 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 					for(int k = 0; k < stat_demandCarriedTrafficArray[1].length; k++){
 						fw.write(Integer.toString(j)+" ");
 						fw.write(Double.toString(bandwidthInGbpsPerServiceArray[k])+" ");
+						fw.write(Integer.toString(stat_demandOfferedConnectionsArray[j][k])+" ");
+						fw.write(Integer.toString(stat_demandCarriedConnectionsArray[j][k])+" ");
 						fw.write(Double.toString(stat_demandOfferedTrafficArray[j][k])+" ");
 						fw.write(Double.toString(stat_demandCarriedTrafficArray[j][k])+"\r\n");
 					}
@@ -198,13 +201,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-	
-		String fileInputsName = "fileInputsName"+Integer.toString(lf)+".txt";
-
-		if (this.timeTraceMode.getBoolean())
-			this.statsCalculator.finish(fileInputsName);
-		
-		return "Blocking evolution";
+			return "Blocking evolution";
 	}
 
 	@Override
@@ -326,12 +323,15 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 			candidateModulationFormats.add(routeModulationFormat);
 			modulationFormatPerPath = WDMUtils2.computeModulationFormatPerPath(cpl, linkLengthInKmMap, candidateModulationFormats);
 			
-		}
+		}		
+
+		statsCalculator.setStatisticsCalculator(initialNetPlan,trafficLayer,numSlotsPerService,totalAvailableSlotsPerFiber,totalAvailableSlotsPerFiber);
 		
 		stat_demandOfferedTrafficArray = new double[initialNetPlan.getDemandIds().size()][numServices];
 		stat_demandCarriedTrafficArray = new double[initialNetPlan.getDemandIds().size()][numServices];
-		
-		
+		stat_demandOfferedConnectionsArray = new int[initialNetPlan.getDemandIds().size()][numServices];
+		stat_demandCarriedConnectionsArray = new int[initialNetPlan.getDemandIds().size()][numServices];
+				
 		stat_accumulatedCarriedTrafficInGbps = 0;
 				
 		this.finishTransitory(0);
@@ -360,6 +360,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 			this.stat_offeredConnectionsPerService[serviceId]++;
 			this.stat_accumulatedOfferedTrafficInGbps += lineRateGbps;	
 			this.stat_demandOfferedTrafficArray[demand.getIndex()][serviceId] += lineRateGbps;
+			this.stat_demandOfferedConnectionsArray[demand.getIndex()][serviceId] ++;
 			
 			Quadruple<List<Link>, ModulationFormat, Integer, Integer> allocation = findPotentialAllocationForConnection(currentNetPlan, demand , lineRateGbps , serviceId);
 			if (allocation == null)
@@ -415,6 +416,7 @@ public class OnLine_evProc_Utilization_Study extends IEventProcessor
 				
 				// Update the carried traffic of the demands (and services)
 				this.stat_demandCarriedTrafficArray[demand.getIndex()][serviceId] += lineRateGbps; 	//	It's needed including o create an index that awares the services and the demands jointly 
+				this.stat_demandCarriedConnectionsArray[demand.getIndex()][serviceId] ++;
 			}
 		}					
 		else if (event.getEventObject () instanceof WDMUtils.LightpathRemove)

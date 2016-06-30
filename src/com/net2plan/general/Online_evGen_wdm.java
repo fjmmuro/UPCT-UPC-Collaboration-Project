@@ -77,7 +77,7 @@ public class Online_evGen_wdm extends IEventGenerator
 	private InputParameter fg_loadFactor = new InputParameter ("fg_loadFactor", (double) 1 , "Network load factor (scale up/down the input traffic)");
 	private InputParameter fg_bandwidthInGbpsPerService = new InputParameter ("fg_bandwidthInGbpsPerService", "400 100 40 10" , "Binary rate (in Gbps) per service");
 	private InputParameter fg_connectionProportionPerService = new InputParameter ("fg_connectionProportionPerService", "1 1 1 1", "In average, the number of requests of each service is proportional to this number");
-	private InputParameter fg_maxNumberOfConnectionRequests = new InputParameter ("fg_maxNumberOfConnectionRequests", (long) 100000, "Maximum number of connection requests");
+	private InputParameter fg_maxNumberOfConnectionRequests = new InputParameter ("fg_maxNumberOfConnectionRequests", (long) 200000, "Maximum number of connection requests");
 	private InputParameter trafficLayerId = new InputParameter ("trafficLayerId", (long) -1 , "Layer containing traffic demands (-1 means default layer)");
 	private InputParameter randomSeed = new InputParameter ("randomSeed", (long) -1 , "Seed for the random generator (-1 means random)");
 	private InputParameter cac_avHoldingTimeHours = new InputParameter ("cac_avHoldingTimeHours", (double) 1 , "Default average connection duration (in seconds)" , 0 , false , Double.MAX_VALUE , true);
